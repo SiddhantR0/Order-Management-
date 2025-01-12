@@ -1,14 +1,26 @@
 const express = require('express');
+const mysql = require('mysql2');
 const app = express();
 const port = 3000;
 
 app.use(express.json());
 
-// Temporary in-memory data store
-let orders = [];
-let nextOrderId = 1;
+const db = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: 'Sid_9847386258@',  
+    database: 'order_management'  
+});
 
-// Create an order
+db.connect((err) => {
+    if (err) {
+        console.error('Error connecting to the database:', err.message);
+        return;
+    }
+    console.log('Connected to the MySQL database.');
+});
+
+// POST
 app.post('/orders', (req, res) => {
     const { item, quantity } = req.body;
 
@@ -16,55 +28,85 @@ app.post('/orders', (req, res) => {
         return res.status(400).json({ error: 'Item and quantity are required' });
     }
 
-    const newOrder = { id: nextOrderId++, item, quantity, completed: false };
-    orders.push(newOrder);
-
-    res.status(201).json(newOrder);
+    const sql = 'INSERT INTO orders (item, quantity) VALUES (?, ?)';
+    db.query(sql, [item, quantity], (err, result) => {
+        if (err) {
+            console.error('Error creating order:', err.message);
+            return res.status(500).json({ error: 'Failed to create order' });
+        }
+        const newOrder = { id: result.insertId, item, quantity, completed: false };
+        res.status(201).json(newOrder);
+    });
 });
 
-// Show an order
+// GET ALL
+app.get('/orders', (req, res) => {
+    const sql = 'SELECT * FROM orders';
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error('Error fetching orders:', err.message);
+            return res.status(500).json({ error: 'Failed to fetch orders' });
+        }
+        res.json(results);
+    });
+});
+
+// GET SPECIFIED
 app.get('/orders/:id', (req, res) => {
     const orderId = parseInt(req.params.id);
-    const order = orders.find(o => o.id === orderId);
+    const sql = 'SELECT * FROM orders WHERE id = ?';
+    db.query(sql, [orderId], (err, results) => {
+        if (err) {
+            console.error('Error fetching order:', err.message);
+            return res.status(500).json({ error: 'Failed to fetch order' });
+        }
 
-    if (!order) {
-        return res.status(404).json({ error: 'Order not found' });
-    }
+        if (results.length === 0) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
 
-    res.json(order);
+        res.json(results[0]);
+    });
 });
 
-// Update an order
+// PUT
 app.put('/orders/:id', (req, res) => {
     const orderId = parseInt(req.params.id);
     const { item, quantity, completed } = req.body;
 
-    const order = orders.find(o => o.id === orderId);
-    if (!order) {
-        return res.status(404).json({ error: 'Order not found' });
-    }
+    const sql = 'UPDATE orders SET item = ?, quantity = ?, completed = ? WHERE id = ?';
+    db.query(sql, [item, quantity, completed, orderId], (err, result) => {
+        if (err) {
+            console.error('Error updating order:', err.message);
+            return res.status(500).json({ error: 'Failed to update order' });
+        }
 
-    if (item !== undefined) order.item = item;
-    if (quantity !== undefined) order.quantity = quantity;
-    if (completed !== undefined) order.completed = completed;
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
 
-    res.json(order);
+        res.json({ id: orderId, item, quantity, completed });
+    });
 });
 
-// Delete an order
+// DELETE
 app.delete('/orders/:id', (req, res) => {
     const orderId = parseInt(req.params.id);
-    const index = orders.findIndex(o => o.id === orderId);
+    const sql = 'DELETE FROM orders WHERE id = ?';
+    db.query(sql, [orderId], (err, result) => {
+        if (err) {
+            console.error('Error deleting order:', err.message);
+            return res.status(500).json({ error: 'Failed to delete order' });
+        }
 
-    if (index === -1) {
-        return res.status(404).json({ error: 'Order not found' });
-    }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
 
-    const deletedOrder = orders.splice(index, 1)[0];
-    res.json(deletedOrder);
+        res.json({ message: 'Order deleted successfully' });
+    });
 });
 
-// Start the server
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
