@@ -4,7 +4,7 @@ const router = express.Router();
 
 // POST
 router.post('/', (req, res) => {
-    const { user_id, item, quantity } = req.body;  y
+    const { user_id, item, quantity } = req.body;  
 
     if (!user_id || !item || !quantity) {
         return res.status(400).json({ error: 'User ID, item, and quantity are required' });
